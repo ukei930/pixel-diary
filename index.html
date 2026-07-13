@@ -616,6 +616,14 @@
                 </div>
             </div>
 
+            <!-- Supabase Quick Connect Panel -->
+            <div id="supabase-panel" style="position: absolute; top: 16px; right: 20px; z-index:11; background: rgba(255,255,255,0.9); padding:8px 10px; border-radius:10px; border:2px solid #333; display:flex; gap:8px; align-items:center;">
+                <input id="supabaseUrl" placeholder="SUPABASE_URL" style="width:220px; font-size:12px; padding:4px;" />
+                <input id="supabaseAnonKey" placeholder="SUPABASE_ANON_KEY" style="width:220px; font-size:12px; padding:4px;" />
+                <button id="btnSupabaseConnect" class="lang-btn" style="font-size:12px; padding:6px 8px;" onclick="connectSupabase()">Connect</button>
+                <button id="btnFetchDb" class="lang-btn" style="font-size:12px; padding:6px 8px; display:none;" onclick="fetchEntriesFromDb()">Sync DB</button>
+            </div>
+
             <span class="star-sticker star-1">★</span>
             <span class="star-sticker star-2">✦</span>
             <span class="star-sticker star-3">★</span>
@@ -680,6 +688,10 @@
 
     </div>
 
+    <!-- Load Supabase JS (UMD) and client bridge -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js/dist/umd/supabase.min.js"></script>
+    <script src="static/js/supabase-client.js"></script>
+
     <!-- ---------------------------------------------------- -->
     <!-- 🧠 JavaScript & Google Authentication Logic -->
     <!-- ---------------------------------------------------- -->
@@ -694,11 +706,20 @@
         }
 
         // Supabase connection settings
-        const SUPABASE_URL = 'https://ccgzkblqbnmfofsprxei.supabase.co';
-        const SUPABASE_ANON_KEY = 'REPLACE_ME_ANON_KEY';
-        const useSupabase = SUPABASE_URL && SUPABASE_ANON_KEY && !SUPABASE_ANON_KEY.includes('YOUR_');
-        const supabaseClient = useSupabase ? supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
-        let diaryEntries = [];
+        var SUPABASE_URL = 'https://ccgzkblqbnmfofsprxei.supabase.co';
+        var SUPABASE_ANON_KEY = 'REPLACE_ME_ANON_KEY';
+        var useSupabase = false;
+        var supabaseClient = null;
+        var diaryEntries = [];
+
+        function initializeSupabaseClient() {
+            useSupabase = SUPABASE_URL && SUPABASE_ANON_KEY && !SUPABASE_ANON_KEY.includes('YOUR_');
+            if (useSupabase) {
+                supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+            }
+        }
+
+        initializeSupabaseClient();
 
         // 解析 JWT Token 获得用户信息
         function parseJwt(token) {
@@ -1015,7 +1036,7 @@
             }
         }
 
-        function addEntry() {
+        async function addEntry() {
             const input = document.getElementById('diaryInput');
             const content = input.value.trim();
             const visibility = document.getElementById('visibilitySelect').value;
