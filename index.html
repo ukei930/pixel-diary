@@ -9,6 +9,8 @@
     
     <!-- 🔑 1. 引入 Google 官方登录 SDK -->
     <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <!-- Supabase JS Client -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.33.0/dist/supabase.min.js"></script>
 
     <style>
         /* Color System */
@@ -691,6 +693,13 @@
                 .replace(/'/g, "&#039;");
         }
 
+        // Supabase connection settings
+        const SUPABASE_URL = 'https://ccgzkblqbnmfofsprxei.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNjZ3prYmxxYm5tZm9mc3ByeGVpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM5MjcxMDUsImV4cCI6MjA5OTUwMzEwNX0.OQLg2y3MXuB_Nc9tMdYevQ9JywXlPrQynAr4jG-TNgM';
+        const useSupabase = SUPABASE_URL && SUPABASE_ANON_KEY && !SUPABASE_ANON_KEY.includes('YOUR_');
+        const supabaseClient = useSupabase ? supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+        let diaryEntries = [];
+
         // 解析 JWT Token 获得用户信息
         function parseJwt(token) {
             try {
@@ -735,6 +744,89 @@
                 if (googleBtn) googleBtn.style.display = 'block';
                 profileWidget.style.display = 'none';
             }
+        }
+
+        async function loadEntries() {
+            if (useSupabase && supabaseClient) {
+                const { data, error } = await supabaseClient
+                    .from('diary_entries')
+                    .select('*')
+                    .order('created_at', { ascending: false });
+
+                if (!error && data) {
+                    diaryEntries = data.map(item => ({
+                        id: item.id,
+                        date: item.date,
+                        content: item.content,
+                        mood: item.mood,
+                        visibility: item.visibility,
+                        image: item.image,
+                        author: item.author_name ? {
+                            name: item.author_name,
+                            picture: item.author_picture,
+                            email: item.author_email
+                        } : null
+                    }));
+                    return;
+                }
+            }
+
+            const localEntries = JSON.parse(localStorage.getItem('pixel_diary_entries') || '[]');
+            if (localEntries.length === 0) {
+                const defaultEntries = [
+                    {
+                        id: 1,
+                        date: `${formattedDate} • 18:30`,
+                        content: "A quiet sunny afternoon. Took a stroll on the grass and snapped a few film photos.",
+                        mood: "Memories",
+                        visibility: "public",
+                        image: "",
+                        author: { name: "Pixel Friend", picture: "" }
+                    }
+                ];
+                localStorage.setItem('pixel_diary_entries', JSON.stringify(defaultEntries));
+                diaryEntries = defaultEntries;
+            } else {
+                diaryEntries = localEntries;
+            }
+        }
+
+        async function saveEntryToSupabase(entry) {
+            if (!useSupabase || !supabaseClient) return null;
+            const { data, error } = await supabaseClient
+                .from('diary_entries')
+                .insert([{ 
+                    date: entry.date,
+                    content: entry.content,
+                    mood: entry.mood,
+                    visibility: entry.visibility,
+                    image: entry.image,
+                    author_name: entry.author?.name || null,
+                    author_picture: entry.author?.picture || null,
+                    author_email: entry.author?.email || null
+                }])
+                .select('*')
+                .single();
+
+            if (error) {
+                console.warn('Supabase insert failed:', error.message);
+                return null;
+            }
+            return data;
+        }
+
+        async function deleteEntryFromSupabase(id) {
+            if (!useSupabase || !supabaseClient) return false;
+            const { error } = await supabaseClient
+                .from('diary_entries')
+                .delete()
+                .eq('id', id);
+
+            if (error) {
+                console.warn('Supabase delete failed:', error.message);
+                return false;
+            }
+            return true;
         }
 
         function logoutGoogle() {
@@ -865,7 +957,7 @@
         const today = new Date();
         const formattedDate = `${today.getFullYear()}.${String(today.getMonth()+1).padStart(2,'0')}.${String(today.getDate()).padStart(2,'0')}`;
 
-        window.onload = function() {
+        window.onload = async function() {
             document.getElementById('liveDate').innerText = formattedDate;
 
             // 检查缓存的 Google 用户状态
@@ -878,20 +970,7 @@
             PixelAnimalRenderer.render('BUNNY', 'computer-bunny');
             PixelAnimalRenderer.render('CAT', 'board-cat');
 
-            if (!localStorage.getItem('pixel_diary_entries')) {
-                const defaultEntries = [
-                    {
-                        id: 1,
-                        date: `${formattedDate} • 18:30`,
-                        content: "A quiet sunny afternoon. Took a stroll on the grass and snapped a few film photos.",
-                        mood: "Memories",
-                        visibility: "public",
-                        image: "",
-                        author: { name: "Pixel Friend", picture: "" }
-                    }
-                ];
-                localStorage.setItem('pixel_diary_entries', JSON.stringify(defaultEntries));
-            }
+            await loadEntries();
             renderEntries();
         };
 
@@ -948,18 +1027,39 @@
             const mins = String(now.getMinutes()).padStart(2, '0');
 
             const newEntry = {
-                id: Date.now(),
                 date: `${formattedDate} • ${hours}:${mins}`,
                 content: content,
                 mood: selectedMood,
                 visibility: visibility,
                 image: currentBase64Image,
-                author: currentUser ? { name: currentUser.name, picture: currentUser.picture } : null
+                author: currentUser ? { name: currentUser.name, picture: currentUser.picture, email: currentUser.email } : null,
+                created_at: new Date().toISOString()
             };
 
-            const entries = JSON.parse(localStorage.getItem('pixel_diary_entries') || '[]');
-            entries.unshift(newEntry);
-            localStorage.setItem('pixel_diary_entries', JSON.stringify(entries));
+            if (useSupabase) {
+                const saved = await saveEntryToSupabase(newEntry);
+                if (saved) {
+                    diaryEntries.unshift({
+                        id: saved.id,
+                        date: saved.date,
+                        content: saved.content,
+                        mood: saved.mood,
+                        visibility: saved.visibility,
+                        image: saved.image,
+                        author: saved.author_name ? {
+                            name: saved.author_name,
+                            picture: saved.author_picture,
+                            email: saved.author_email
+                        } : null
+                    });
+                } else {
+                    diaryEntries.unshift({ id: Date.now(), ...newEntry });
+                }
+            } else {
+                const entryWithId = { id: Date.now(), ...newEntry };
+                diaryEntries.unshift(entryWithId);
+                localStorage.setItem('pixel_diary_entries', JSON.stringify(diaryEntries));
+            }
 
             input.value = '';
             document.getElementById('fileInput').value = '';
@@ -1040,10 +1140,18 @@
             });
         }
 
-        function deleteEntry(id) {
-            let entries = JSON.parse(localStorage.getItem('pixel_diary_entries') || '[]');
-            entries = entries.filter(e => e.id !== id);
-            localStorage.setItem('pixel_diary_entries', JSON.stringify(entries));
+        async function deleteEntry(id) {
+            if (useSupabase) {
+                const deleted = await deleteEntryFromSupabase(id);
+                if (!deleted) {
+                    console.warn('Supabase delete failed, removing locally instead.');
+                }
+            }
+
+            diaryEntries = diaryEntries.filter(e => e.id !== id);
+            if (!useSupabase) {
+                localStorage.setItem('pixel_diary_entries', JSON.stringify(diaryEntries));
+            }
             renderEntries();
         }
     </script>
