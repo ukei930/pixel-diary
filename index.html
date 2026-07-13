@@ -11,6 +11,7 @@
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <!-- Supabase JS Client -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.33.0/dist/supabase.min.js"></script>
+    <script src="static/js/supabase-config.js"></script>
 
     <style>
         /* Color System */
@@ -706,13 +707,15 @@
         }
 
         // Supabase connection settings
-        var SUPABASE_URL = 'https://ccgzkblqbnmfofsprxei.supabase.co';
-        var SUPABASE_ANON_KEY = 'REPLACE_ME_ANON_KEY';
+        var SUPABASE_URL = window.SUPABASE_URL || 'https://ccgzkblqbnmfofsprxei.supabase.co';
+        var SUPABASE_ANON_KEY = window.SUPABASE_ANON_KEY || 'REPLACE_ME_ANON_KEY';
         var useSupabase = false;
         var supabaseClient = null;
         var diaryEntries = [];
 
         function initializeSupabaseClient() {
+            SUPABASE_URL = window.SUPABASE_URL || SUPABASE_URL;
+            SUPABASE_ANON_KEY = window.SUPABASE_ANON_KEY || SUPABASE_ANON_KEY;
             useSupabase = SUPABASE_URL && SUPABASE_ANON_KEY && !SUPABASE_ANON_KEY.includes('YOUR_');
             if (useSupabase) {
                 supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -992,6 +995,12 @@
             PixelAnimalRenderer.render('CAT', 'board-cat');
 
             await loadEntries();
+            if (useSupabase && supabaseClient) {
+                const connectPanel = document.getElementById('supabase-panel');
+                if (connectPanel) connectPanel.style.display = 'none';
+                const fetchBtn = document.getElementById('btnFetchDb');
+                if (fetchBtn) fetchBtn.style.display = 'inline-block';
+            }
             renderEntries();
         };
 
