@@ -1082,6 +1082,9 @@
                             email: saved.author_email
                         } : null
                     });
+                    if (typeof fetchEntriesFromDb === 'function') {
+                        await fetchEntriesFromDb();
+                    }
                 } else {
                     diaryEntries.unshift({ id: Date.now(), ...newEntry });
                 }
@@ -1110,7 +1113,7 @@
             const grid = document.getElementById('diaryGrid');
             grid.innerHTML = '';
 
-            let entries = JSON.parse(localStorage.getItem('pixel_diary_entries') || '[]');
+            let entries = useSupabase ? diaryEntries.slice() : JSON.parse(localStorage.getItem('pixel_diary_entries') || '[]');
 
             if (currentFilter !== 'all') {
                 entries = entries.filter(e => e.visibility === currentFilter);
