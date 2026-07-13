@@ -695,7 +695,7 @@
 
         // Supabase connection settings
         const SUPABASE_URL = 'https://ccgzkblqbnmfofsprxei.supabase.co';
-        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNjZ3prYmxxYm5tZm9mc3ByeGVpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM5MjcxMDUsImV4cCI6MjA5OTUwMzEwNX0.OQLg2y3MXuB_Nc9tMdYevQ9JywXlPrQynAr4jG-TNgM';
+        const SUPABASE_ANON_KEY = 'REPLACE_ME_ANON_KEY';
         const useSupabase = SUPABASE_URL && SUPABASE_ANON_KEY && !SUPABASE_ANON_KEY.includes('YOUR_');
         const supabaseClient = useSupabase ? supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
         let diaryEntries = [];
