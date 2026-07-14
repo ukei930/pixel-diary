@@ -357,6 +357,62 @@
             box-shadow: 5px 5px 0px #333;
         }
 
+        .btn-add:disabled {
+            cursor: wait;
+            opacity: 0.65;
+            transform: none;
+            box-shadow: 3px 3px 0px #333;
+        }
+
+        /* Posting progress dialog */
+        .loading-dialog-backdrop {
+            position: fixed;
+            inset: 0;
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            background: rgba(51, 51, 51, 0.5);
+        }
+
+        .loading-dialog-backdrop[hidden] { display: none; }
+
+        .loading-dialog {
+            min-width: min(320px, 100%);
+            background: var(--cream-card);
+            border: 4px solid #333;
+            border-radius: 12px;
+            padding: 24px 28px;
+            text-align: center;
+            box-shadow: 7px 7px 0 #333;
+            font-family: 'VT323', monospace;
+            color: #333;
+        }
+
+        .loading-spinner {
+            width: 28px;
+            height: 28px;
+            margin: 0 auto 12px;
+            border: 4px solid #333;
+            border-top-color: var(--tape-pink);
+            border-radius: 50%;
+            animation: loadingSpin 0.8s linear infinite;
+        }
+
+        .loading-dialog-title {
+            font-size: 1.5rem;
+            letter-spacing: 1px;
+        }
+
+        .loading-dialog-message {
+            margin-top: 4px;
+            font-size: 1.05rem;
+            color: var(--text-muted);
+        }
+
+        @keyframes loadingSpin { to { transform: rotate(360deg); } }
+
         /* Polkadot Board */
         .polkadot-board {
             background: var(--tape-pink);
@@ -578,6 +634,14 @@
 <body>
 
     <div class="halftone-overlay"></div>
+
+    <div id="loadingDialog" class="loading-dialog-backdrop" role="dialog" aria-modal="true" aria-labelledby="loadingDialogTitle" hidden>
+        <div class="loading-dialog">
+            <div class="loading-spinner" aria-hidden="true"></div>
+            <div id="loadingDialogTitle" class="loading-dialog-title">SAVING ENTRY...</div>
+            <div id="loadingDialogMessage" class="loading-dialog-message">Please wait a moment.</div>
+        </div>
+    </div>
 
     <div class="page-wrapper">
         
@@ -941,7 +1005,9 @@
                 filterAll: "All",
                 filterPublic: "Public",
                 filterPrivate: "Private",
-                delete: "DELETE"
+                delete: "DELETE",
+                saving: "SAVING ENTRY...",
+                pleaseWait: "Please wait a moment."
             },
             zh: {
                 title: "数字日记簿",
@@ -955,7 +1021,9 @@
                 filterAll: "全部",
                 filterPublic: "公开",
                 filterPrivate: "私密",
-                delete: "删除"
+                delete: "删除",
+                saving: "正在保存日记...",
+                pleaseWait: "请稍候。"
             },
             jp: {
                 title: "デジタル日記",
@@ -969,7 +1037,9 @@
                 filterAll: "すべて",
                 filterPublic: "公開",
                 filterPrivate: "非公開",
-                delete: "削除"
+                delete: "削除",
+                saving: "日記を保存中...",
+                pleaseWait: "しばらくお待ちください。"
             }
         };
 
@@ -977,6 +1047,7 @@
         let currentFilter = 'all';
         let selectedMood = 'Memories';
         let currentBase64Image = '';
+        let isSavingEntry = false;
 
         const today = new Date();
         const formattedDate = `${today.getFullYear()}.${String(today.getMonth()+1).padStart(2,'0')}.${String(today.getDate()).padStart(2,'0')}`;
@@ -1022,6 +1093,11 @@
             document.getElementById('filter-public').innerText = t.filterPublic;
             document.getElementById('filter-private').innerText = t.filterPrivate;
 
+            if (isSavingEntry) {
+                document.getElementById('loadingDialogTitle').innerText = t.saving;
+                document.getElementById('loadingDialogMessage').innerText = t.pleaseWait;
+            }
+
             renderEntries();
         }
 
@@ -1050,7 +1126,7 @@
             const content = input.value.trim();
             const visibility = document.getElementById('visibilitySelect').value;
 
-            if (!content && !currentBase64Image) return;
+            if ((!content && !currentBase64Image) || isSavingEntry) return;
 
             const now = new Date();
             const hours = String(now.getHours()).padStart(2, '0');
@@ -1066,40 +1142,60 @@
                 created_at: new Date().toISOString()
             };
 
-            if (useSupabase) {
-                const saved = await saveEntryToSupabase(newEntry);
-                if (saved) {
-                    diaryEntries.unshift({
-                        id: saved.id,
-                        date: saved.date,
-                        content: saved.content,
-                        mood: saved.mood,
-                        visibility: saved.visibility,
-                        image: saved.image,
-                        author: saved.author_name ? {
-                            name: saved.author_name,
-                            picture: saved.author_picture,
-                            email: saved.author_email
-                        } : null
-                    });
-                    if (typeof fetchEntriesFromDb === 'function') {
-                        await fetchEntriesFromDb();
+            const saveButton = document.getElementById('ui-save');
+            const loadingDialog = document.getElementById('loadingDialog');
+            const loadingTitle = document.getElementById('loadingDialogTitle');
+            const loadingMessage = document.getElementById('loadingDialogMessage');
+            const t = i18n[currentLang];
+            isSavingEntry = true;
+            saveButton.disabled = true;
+            loadingTitle.innerText = t.saving;
+            loadingMessage.innerText = t.pleaseWait;
+            loadingDialog.hidden = false;
+
+            try {
+                if (useSupabase) {
+                    const saved = await saveEntryToSupabase(newEntry);
+                    if (saved) {
+                        diaryEntries.unshift({
+                            id: saved.id,
+                            date: saved.date,
+                            content: saved.content,
+                            mood: saved.mood,
+                            visibility: saved.visibility,
+                            image: saved.image,
+                            author: saved.author_name ? {
+                                name: saved.author_name,
+                                picture: saved.author_picture,
+                                email: saved.author_email
+                            } : null
+                        });
+                        if (typeof fetchEntriesFromDb === 'function') {
+                            await fetchEntriesFromDb();
+                        }
+                    } else {
+                        diaryEntries.unshift({ id: Date.now(), ...newEntry });
                     }
                 } else {
-                    diaryEntries.unshift({ id: Date.now(), ...newEntry });
+                    const entryWithId = { id: Date.now(), ...newEntry };
+                    diaryEntries.unshift(entryWithId);
+                    localStorage.setItem('pixel_diary_entries', JSON.stringify(diaryEntries));
                 }
-            } else {
-                const entryWithId = { id: Date.now(), ...newEntry };
-                diaryEntries.unshift(entryWithId);
-                localStorage.setItem('pixel_diary_entries', JSON.stringify(diaryEntries));
+
+                input.value = '';
+                document.getElementById('fileInput').value = '';
+                document.getElementById('imgPreview').style.display = 'none';
+                currentBase64Image = '';
+
+                renderEntries();
+            } catch (error) {
+                console.error('Failed to save diary entry:', error);
+                alert('Failed to save entry. Please try again.');
+            } finally {
+                isSavingEntry = false;
+                saveButton.disabled = false;
+                loadingDialog.hidden = true;
             }
-
-            input.value = '';
-            document.getElementById('fileInput').value = '';
-            document.getElementById('imgPreview').style.display = 'none';
-            currentBase64Image = '';
-
-            renderEntries();
         }
 
         function filterEntries(type) {
