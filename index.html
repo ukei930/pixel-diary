@@ -681,14 +681,6 @@
                 </div>
             </div>
 
-            <!-- Supabase Quick Connect Panel -->
-            <div id="supabase-panel" style="position: absolute; top: 16px; right: 20px; z-index:11; background: rgba(255,255,255,0.9); padding:8px 10px; border-radius:10px; border:2px solid #333; display:flex; gap:8px; align-items:center;">
-                <input id="supabaseUrl" placeholder="SUPABASE_URL" style="width:220px; font-size:12px; padding:4px;" />
-                <input id="supabaseAnonKey" placeholder="SUPABASE_ANON_KEY" style="width:220px; font-size:12px; padding:4px;" />
-                <button id="btnSupabaseConnect" class="lang-btn" style="font-size:12px; padding:6px 8px;" onclick="connectSupabase()">Connect</button>
-                <button id="btnFetchDb" class="lang-btn" style="font-size:12px; padding:6px 8px; display:none;" onclick="fetchEntriesFromDb()">Sync DB</button>
-            </div>
-
             <span class="star-sticker star-1">★</span>
             <span class="star-sticker star-2">✦</span>
             <span class="star-sticker star-3">★</span>
@@ -1066,12 +1058,6 @@
             PixelAnimalRenderer.render('CAT', 'board-cat');
 
             await loadEntries();
-            if (useSupabase && supabaseClient) {
-                const connectPanel = document.getElementById('supabase-panel');
-                if (connectPanel) connectPanel.style.display = 'none';
-                const fetchBtn = document.getElementById('btnFetchDb');
-                if (fetchBtn) fetchBtn.style.display = 'inline-block';
-            }
             renderEntries();
         };
 
