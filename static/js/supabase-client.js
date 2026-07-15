@@ -49,6 +49,7 @@
             mood: d.mood,
             visibility: d.visibility,
             image: d.image,
+            author_email: d.author_email,
             author: d.author_name ? { name: d.author_name, picture: d.author_picture, email: d.author_email } : null
         }));
 
