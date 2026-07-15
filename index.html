@@ -824,6 +824,9 @@
                 if (googleBtn) googleBtn.style.display = 'block';
                 profileWidget.style.display = 'none';
             }
+
+            // Re-render ownership-controlled delete buttons after login/logout.
+            if (typeof renderEntries === 'function') renderEntries();
         }
 
         async function loadEntries() {
@@ -841,6 +844,7 @@
                         mood: item.mood,
                         visibility: item.visibility,
                         image: item.image,
+                        author_email: item.author_email,
                         author: item.author_name ? {
                             name: item.author_name,
                             picture: item.author_picture,
@@ -895,18 +899,20 @@
             return data;
         }
 
-        async function deleteEntryFromSupabase(id) {
-            if (!useSupabase || !supabaseClient) return false;
-            const { error } = await supabaseClient
+        async function deleteEntryFromSupabase(id, authorEmail) {
+            if (!useSupabase || !supabaseClient || !authorEmail) return false;
+            const { data, error } = await supabaseClient
                 .from('diary_entries')
                 .delete()
-                .eq('id', id);
+                .eq('id', id)
+                .eq('author_email', authorEmail)
+                .select('id');
 
             if (error) {
                 console.warn('Supabase delete failed:', error.message);
                 return false;
             }
-            return true;
+            return Array.isArray(data) && data.length > 0;
         }
 
         function logoutGoogle() {
@@ -1124,6 +1130,7 @@
                 mood: selectedMood,
                 visibility: visibility,
                 image: currentBase64Image,
+                author_email: currentUser?.email || null,
                 author: currentUser ? { name: currentUser.name, picture: currentUser.picture, email: currentUser.email } : null,
                 created_at: new Date().toISOString()
             };
@@ -1150,6 +1157,7 @@
                             mood: saved.mood,
                             visibility: saved.visibility,
                             image: saved.image,
+                            author_email: saved.author_email,
                             author: saved.author_name ? {
                                 name: saved.author_name,
                                 picture: saved.author_picture,
@@ -1242,7 +1250,7 @@
                             <span class="card-tag">${entry.mood}</span>
                             <span class="card-tag card-visibility">${visLabel}</span>
                         </div>
-                        <button class="btn-delete" onclick="deleteEntry(${entry.id})">[${t.delete}]</button>
+                        ${isEntryOwnedByCurrentUser(entry) ? `<button class="btn-delete" onclick="deleteEntry(${entry.id})">[${t.delete}]</button>` : ''}
                     </div>
                     <span class="star-cutout">★</span>
                 `;
@@ -1255,11 +1263,30 @@
             });
         }
 
+        function isEntryOwnedByCurrentUser(entry) {
+            const currentEmail = String(currentUser?.email || '').trim().toLowerCase();
+            // Supabase's author_email column is the only ownership source.
+            // Do not fall back to display names or incomplete legacy author data.
+            const entryEmail = String(entry?.author_email || '').trim().toLowerCase();
+
+            return Boolean(
+                currentEmail &&
+                entryEmail &&
+                currentEmail === entryEmail
+            );
+        }
+
         async function deleteEntry(id) {
+            const entry = diaryEntries.find(item => item.id === id);
+            if (!entry || !isEntryOwnedByCurrentUser(entry)) {
+                return;
+            }
+
             if (useSupabase) {
-                const deleted = await deleteEntryFromSupabase(id);
+                const deleted = await deleteEntryFromSupabase(id, currentUser.email);
                 if (!deleted) {
-                    console.warn('Supabase delete failed, removing locally instead.');
+                    console.warn('Supabase delete failed or the entry is not owned by the current user.');
+                    return;
                 }
             }
 
