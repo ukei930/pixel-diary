@@ -470,6 +470,42 @@
             box-shadow: 1px 1px 0px #333;
         }
 
+        .pagination-controls {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-top: 20px;
+        }
+
+        .pagination-btn {
+            background: transparent;
+            border: 2px solid #333;
+            border-radius: 16px;
+            padding: 6px 14px;
+            font-family: 'Nunito', sans-serif;
+            font-size: 0.85rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: background 0.2s ease;
+        }
+
+        .pagination-btn:hover {
+            background: #FFF;
+        }
+
+        .pagination-btn.disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        .pagination-status {
+            font-family: 'VT323', monospace;
+            font-size: 0.9rem;
+            color: #333;
+        }
+
         .diary-grid {
             display: flex;
             flex-direction: column;
@@ -741,6 +777,11 @@
             </div>
 
             <div class="diary-grid" id="diaryGrid"></div>
+            <div class="pagination-controls" id="paginationControls">
+                <button class="pagination-btn" onclick="changePage(-1)" id="prevPageBtn">‹ Previous</button>
+                <span class="pagination-status" id="paginationStatus">Page 1 of 1</span>
+                <button class="pagination-btn" onclick="changePage(1)" id="nextPageBtn">Next ›</button>
+            </div>
         </div>
 
     </div>
@@ -1043,6 +1084,8 @@
 
         let currentLang = 'en';
         let currentFilter = 'all';
+        let currentPage = 1;
+        const entriesPerPage = 5;
         let selectedMood = 'Memories';
         let currentBase64Image = '';
         let isSavingEntry = false;
@@ -1192,8 +1235,32 @@
             }
         }
 
+        function changePage(delta) {
+            currentPage += delta;
+            renderEntries();
+            const controls = document.getElementById('paginationControls');
+            if (controls) controls.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+
+        function updatePaginationControls(totalPages) {
+            const status = document.getElementById('paginationStatus');
+            const prevBtn = document.getElementById('prevPageBtn');
+            const nextBtn = document.getElementById('nextPageBtn');
+
+            if (!status || !prevBtn || !nextBtn) return;
+
+            currentPage = Math.min(Math.max(1, currentPage), totalPages || 1);
+            status.innerText = `Page ${currentPage} of ${totalPages || 1}`;
+            prevBtn.disabled = currentPage <= 1;
+            nextBtn.disabled = currentPage >= totalPages;
+            prevBtn.classList.toggle('disabled', currentPage <= 1);
+            nextBtn.classList.toggle('disabled', currentPage >= totalPages);
+            document.getElementById('paginationControls').style.display = totalPages > 1 ? 'flex' : 'none';
+        }
+
         function filterEntries(type) {
             currentFilter = type;
+            currentPage = 1;
             document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
             document.getElementById(`filter-${type}`).classList.add('active');
             renderEntries();
@@ -1209,9 +1276,15 @@
                 entries = entries.filter(e => e.visibility === currentFilter);
             }
 
+            const totalPages = Math.max(1, Math.ceil(entries.length / entriesPerPage));
+            currentPage = Math.min(Math.max(1, currentPage), totalPages);
+            const startIndex = (currentPage - 1) * entriesPerPage;
+            const pageEntries = entries.slice(startIndex, startIndex + entriesPerPage);
+            updatePaginationControls(totalPages);
+
             const t = i18n[currentLang];
 
-            entries.forEach((entry, index) => {
+            pageEntries.forEach((entry, index) => {
                 const card = document.createElement('div');
                 card.className = 'diary-card';
                 card.id = `card-${entry.id}`;
